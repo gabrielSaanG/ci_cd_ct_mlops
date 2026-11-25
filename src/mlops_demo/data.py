@@ -9,21 +9,22 @@ Uso na linha de comando:
 import sys
 
 import pandas as pd
-from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 
 from mlops_demo import config
 
-SEMENTE_DADOS = 7  # divisão fixa da base: não mude, ou o campeão perde a referência
-N_TREINO_BASE = 300
-N_HOLDOUT_BASE = 100
+SEMENTE_DADOS = 42  # divisão fixa da base: não mude, ou o campeão perde a referência
+N_TREINO_BASE = 12000
+N_HOLDOUT_BASE = 3000
+DATASET_COMPLETO = config.RAIZ / "data" / "external" / "htru2.csv"
 
 
 def carregar_dataset_completo() -> pd.DataFrame:
-    """Breast Cancer Wisconsin completo (569 linhas), com a coluna target."""
-    bruto = load_breast_cancer(as_frame=True)
-    df = bruto.frame.copy()
-    df.columns = [*config.FEATURES, config.ALVO]
+    """HTRU2 completo (17.898 linhas), com a coluna alvo (1 = pulsar)."""
+    df = pd.read_csv(DATASET_COMPLETO)
+    esperadas = [*config.FEATURES, config.ALVO]
+    if list(df.columns) != esperadas:
+        raise ValueError(f"colunas de {DATASET_COMPLETO.name} diferentes de {esperadas}")
     return df
 
 
@@ -50,7 +51,12 @@ def criar_base() -> None:
     config.DADOS_LOTES.mkdir(parents=True, exist_ok=True)
     base_treino.to_csv(config.BASE_TREINO, index=False)
     base_holdout.to_csv(config.BASE_HOLDOUT, index=False)
-    print(f"base_treino: {len(base_treino)} linhas | base_holdout: {len(base_holdout)} linhas")
+    pct_treino = base_treino[config.ALVO].mean()
+    pct_holdout = base_holdout[config.ALVO].mean()
+    print(
+        f"base_treino: {len(base_treino)} linhas ({pct_treino:.2%} pulsares) | "
+        f"base_holdout: {len(base_holdout)} linhas ({pct_holdout:.2%} pulsares)"
+    )
 
 
 def aplicar_drift(df: pd.DataFrame, fator: float) -> pd.DataFrame:
