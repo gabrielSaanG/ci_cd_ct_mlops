@@ -37,13 +37,16 @@ FEATURES = [
     "dm_kurtosis",
 ]
 ALVO = "alvo"
-# ATENÇÃO: no Breast Cancer do scikit-learn, 0 = MALIGNO e 1 = BENIGNO.
-CLASSE_MALIGNA = 0
-COLUNAS_TAMANHO = [c for c in FEATURES if any(p in c for p in ("radius", "perimeter", "area"))]
+# HTRU2: 1 = PULSAR (classe positiva, ~9% das linhas), 0 = ruído/RFI.
+CLASSE_PULSAR = 1
+# Atributos sensíveis à escala do sinal (média e desvio do perfil integrado e da curva DM-SNR).
+# Usados para simular drift (recalibração do radiotelescópio) e no teste direcional.
+COLUNAS_ESCALA = ["profile_mean", "profile_stdev", "dm_mean", "dm_stdev"]
 
 # limiares de qualidade (o "contrato" do modelo). Mudar aqui exige revisão em PR.
-RECALL_MINIMO = 0.90
-PRECISAO_MINIMA = 0.90
+# A precisão mínima evita o modelo trivial que marca tudo como pulsar (recall 1,0, precisão ~0,09).
+RECALL_MINIMO = 0.85
+PRECISAO_MINIMA = 0.70
 TOLERANCIA_CAMPEAO = 0.0  # o candidato não pode ter recall menor que o campeão
 PISO_SANIDADE = 0.80  # o campeão não pode colapsar na base de referência (holdout fixo)
 LIMITE_DRIFT_P = 0.01  # p-valor do teste KS

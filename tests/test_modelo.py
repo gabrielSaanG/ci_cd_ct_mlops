@@ -84,9 +84,9 @@ def test_invariancia_a_ruido_minimo(modelo_atual, xy_holdout):
 def test_direcional_tumor_maior_nao_reduz_a_chance_de_maligno(modelo_atual, xy_holdout):
     """Teste direcional: tumor maior não pode reduzir a probabilidade média de câncer."""
     X_te, _ = xy_holdout
-    coluna = list(modelo_atual.classes_).index(config.CLASSE_MALIGNA)
+    coluna = list(modelo_atual.classes_).index(config.CLASSE_PULSAR)
     maior = X_te.copy()
-    for c in config.COLUNAS_TAMANHO:
+    for c in config.COLUNAS_ESCALA:
         maior[c] = maior[c] * 1.10
     antes = modelo_atual.predict_proba(X_te)[:, coluna].mean()
     depois = modelo_atual.predict_proba(maior)[:, coluna].mean()
