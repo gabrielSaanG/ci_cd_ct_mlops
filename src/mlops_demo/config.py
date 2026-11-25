@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import yaml
-from sklearn.datasets import load_breast_cancer
 
 RAIZ = Path(__file__).resolve().parents[2]
 
@@ -27,8 +26,17 @@ RELATORIO_DRIFT = RAIZ / "reports" / "drift.md"
 PARAMS = RAIZ / "params.yaml"
 
 # esquema dos dados
-FEATURES = [str(nome) for nome in load_breast_cancer().feature_names]  # str puro, não numpy.str_
-ALVO = "target"
+FEATURES = [
+    "profile_mean",
+    "profile_stdev",
+    "profile_skewness",
+    "profile_kurtosis",
+    "dm_mean",
+    "dm_stdev",
+    "dm_skewness",
+    "dm_kurtosis",
+]
+ALVO = "alvo"
 # ATENÇÃO: no Breast Cancer do scikit-learn, 0 = MALIGNO e 1 = BENIGNO.
 CLASSE_MALIGNA = 0
 COLUNAS_TAMANHO = [c for c in FEATURES if any(p in c for p in ("radius", "perimeter", "area"))]
