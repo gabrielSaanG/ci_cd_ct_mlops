@@ -50,7 +50,7 @@ PRECISAO_MINIMA = 0.70
 TOLERANCIA_CAMPEAO = 0.0  # o candidato não pode ter recall menor que o campeão
 PISO_SANIDADE = 0.80  # o campeão não pode colapsar na base de referência (holdout fixo)
 LIMITE_DRIFT_P = 0.01  # p-valor do teste KS
-MIN_FEATURES_DRIFT = 3  # gatilho do CT: quantos atributos com drift disparam o retreino
+MIN_FEATURES_DRIFT = 2  # gatilho do CT: drift em 2 ou mais dos 8 atributos dispara o retreino
 
 
 def carregar_params() -> dict:
