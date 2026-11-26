@@ -47,10 +47,10 @@ def prever(exame: Exame) -> Predicao:
     entrada = pd.DataFrame([exame.atributos], columns=config.FEATURES)
     previsto = int(_modelo.predict(entrada)[0])
     # a coluna da classe maligna (0) em predict_proba segue a ordem de classes_
-    coluna = list(_modelo.classes_).index(config.CLASSE_MALIGNA)
+    coluna = list(_modelo.classes_).index(config.CLASSE_PULSAR)
     p_maligno = float(_modelo.predict_proba(entrada)[0][coluna])
     return Predicao(
-        classe="maligno" if previsto == config.CLASSE_MALIGNA else "benigno",
+        classe="maligno" if previsto == config.CLASSE_PULSAR else "benigno",
         probabilidade_maligno=round(p_maligno, 4),
         versao_codigo=__version__,
     )

@@ -42,10 +42,10 @@ def test_pipeline_tem_padronizacao_e_classificador(params):
     assert [nome for nome, _ in pipeline.steps] == ["padronizar", "classificador"]
 
 
-def test_metricas_usam_a_classe_maligna_como_positiva():
-    # modelo que chuta tudo como maligno (0): recall 1.0 e precisão = proporção real de malignos
+def test_metricas_usam_a_classe_pulsar_como_positiva():
+    # modelo que chuta tudo como pulsar (1): recall 1.0 e precisão = proporção real de pulsares
     y_real = [0, 0, 1, 1]
-    metricas = calcular_metricas(y_real, [0, 0, 0, 0])
+    metricas = calcular_metricas(y_real, [1, 1, 1, 1])
     assert metricas["recall_maligno"] == 1.0
     assert metricas["precisao_maligna"] == pytest.approx(0.5)
 
@@ -62,12 +62,14 @@ def test_gate_aprova_candidato_melhor_e_dentro_dos_limiares():
 
 
 def test_gate_reprova_recall_abaixo_do_limiar():
-    assert not decidir(_metricas(0.85, 0.99), _metricas(0.80, 0.99))["aprovado"]
+    # 0,84 < RECALL_MINIMO (0,85)
+    assert not decidir(_metricas(0.84, 0.99), _metricas(0.80, 0.99))["aprovado"]
 
 
 def test_gate_reprova_precisao_abaixo_do_limiar():
     # recall perfeito não compensa uma precisão ruim
-    assert not decidir(_metricas(1.0, 0.70), _metricas(0.95, 0.95))["aprovado"]
+    # 0,69 < PRECISAO_MINIMA (0,70)
+    assert not decidir(_metricas(1.0, 0.69), _metricas(0.95, 0.95))["aprovado"]
 
 
 def test_gate_reprova_candidato_pior_que_o_campeao():

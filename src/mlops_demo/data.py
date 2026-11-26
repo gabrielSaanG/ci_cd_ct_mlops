@@ -60,11 +60,10 @@ def criar_base() -> None:
 
 
 def aplicar_drift(df: pd.DataFrame, fator: float) -> pd.DataFrame:
-    """Simula equipamento recalibrado: raio e perímetro x fator, área x fator ao quadrado."""
+    """Simula radiotelescópio recalibrado: atributos de escala do sinal multiplicados por fator."""
     saida = df.copy()
-    for coluna in config.COLUNAS_TAMANHO:
-        potencia = 2 if "area" in coluna else 1
-        saida[coluna] = saida[coluna] * (fator**potencia)
+    for coluna in config.COLUNAS_ESCALA:
+        saida[coluna] = saida[coluna] * fator
     return saida
 
 
@@ -80,23 +79,51 @@ def gerar_lote(nome: str, n: int = 120, fator_drift: float = 1.0, semente: int =
     return str(caminho)
 
 
+# Regras de faixa do HTRU2, tiradas da definição de cada atributo (não de cortes empíricos):
+# - médias do perfil integrado e da curva DM-SNR: >= 0 (no dataset: 5,8 a 192,6 e 0,2 a 223,4)
+# - desvios-padrão: > 0 (desvio <= 0 é impossível / sinal constante; no dataset: >= 7,3)
+# - assimetria e curtose: podem ser negativas, então só se exige valor finito.
+# Não há teto: um lote com drift de escala precisa passar na validação e ser pego pelo monitor.
+COLUNAS_NAO_NEGATIVAS = ["profile_mean", "dm_mean"]
+COLUNAS_POSITIVAS = ["profile_stdev", "dm_stdev"]
+
+
 def validar_dataframe(df: pd.DataFrame) -> list[str]:
     """Devolve a lista de problemas encontrados (lista vazia = dados válidos)."""
     problemas = []
     esperadas = [*config.FEATURES, config.ALVO]
     if list(df.columns) != esperadas:
-        faltando = sorted(set(esperadas) - set(df.columns))
-        extras = sorted(set(df.columns) - set(esperadas))
-        problemas.append(f"esquema diferente do esperado (faltando={faltando}, extras={extras})")
+        faltando = [c for c in esperadas if c not in df.columns]
+        extras = [c for c in df.columns if c not in esperadas]
+        problemas.append(
+            f"esquema diferente do esperado (faltando={faltando}, extras={extras}, "
+            f"ordem esperada={esperadas})"
+        )
         return problemas
-    nulos = int(df.isna().sum().sum())
-    if nulos:
-        problemas.append(f"{nulos} valores nulos")
-    if not df[config.ALVO].isin([0, 1]).all():
-        problemas.append("alvo com valores fora de {0, 1}")
-    negativos = [c for c in config.FEATURES if (df[c] < 0).any()]
+    if df.empty:
+        return ["arquivo sem linhas"]
+
+    nao_numericas = [c for c in esperadas if not pd.api.types.is_numeric_dtype(df[c])]
+    if nao_numericas:
+        problemas.append(f"colunas não numéricas: {nao_numericas}")
+        return problemas  # as regras abaixo comparam números
+
+    nulos = df[esperadas].isna().sum()
+    if nulos.any():
+        problemas.append(f"valores nulos: {nulos[nulos > 0].to_dict()}")
+    infinitos = [c for c in config.FEATURES if df[c].isin([float("inf"), float("-inf")]).any()]
+    if infinitos:
+        problemas.append(f"valores infinitos em {infinitos}")
+
+    if not df[config.ALVO].dropna().isin([0, 1]).all():
+        problemas.append(f"alvo ({config.ALVO}) com valores fora de {{0, 1}}")
+
+    negativos = [c for c in COLUNAS_NAO_NEGATIVAS if (df[c] < 0).any()]
     if negativos:
-        problemas.append(f"valores negativos em {negativos[:3]}")
+        problemas.append(f"valores negativos em {negativos} (médias devem ser >= 0)")
+    nao_positivos = [c for c in COLUNAS_POSITIVAS if (df[c] <= 0).any()]
+    if nao_positivos:
+        problemas.append(f"valores <= 0 em {nao_positivos} (desvios-padrão devem ser > 0)")
     return problemas
 
 
