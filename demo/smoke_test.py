@@ -28,7 +28,8 @@ print("health ok | versão:", saude["versao_codigo"])
 
 with open(HOLDOUT, encoding="utf-8") as arquivo:
     linha = next(csv.DictReader(arquivo))
-linha.pop("target")
+linha.pop("alvo")
 predicao = chamar("/predict", {"atributos": [float(v) for v in linha.values()]})
-assert predicao["classe"] in {"maligno", "benigno"}, predicao
+assert predicao["classe"] in {"pulsar", "não pulsar"}, predicao
+assert 0.0 <= predicao["probabilidade_pulsar"] <= 1.0, predicao
 print("predict ok |", predicao)

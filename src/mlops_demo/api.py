@@ -1,4 +1,4 @@
-"""API de inferência (FastAPI) servindo o modelo campeão.
+"""API de inferência (FastAPI) servindo o modelo campeão HTRU2.
 
 Local:   uvicorn mlops_demo.api:app --reload
 Docker:  docker run -p 8000:8000 mlops-demo
@@ -18,19 +18,19 @@ from mlops_demo import __version__, config
 CAMINHO_MODELO = Path(os.environ.get("MODEL_PATH", config.MODELO_CAMPEAO))
 CAMINHO_METRICAS = CAMINHO_MODELO.with_name("metrics.json")
 
-app = FastAPI(title="Triagem de tumores (demo CI/CD/CT)", version=__version__)
+app = FastAPI(title="Classificação de pulsares (demo CI/CD/CT)", version=__version__)
 _modelo = joblib.load(CAMINHO_MODELO)
 
 
 class Exame(BaseModel):
-    """Os 30 atributos do exame, na mesma ordem do treino."""
+    """As oito features do HTRU2, na mesma ordem do treino."""
 
-    atributos: list[float] = Field(min_length=30, max_length=30)
+    atributos: list[float] = Field(min_length=8, max_length=8)
 
 
 class Predicao(BaseModel):
     classe: str
-    probabilidade_maligno: float
+    probabilidade_pulsar: float
     versao_codigo: str
 
 
@@ -46,11 +46,10 @@ def saude() -> dict:
 def prever(exame: Exame) -> Predicao:
     entrada = pd.DataFrame([exame.atributos], columns=config.FEATURES)
     previsto = int(_modelo.predict(entrada)[0])
-    # a coluna da classe maligna (0) em predict_proba segue a ordem de classes_
     coluna = list(_modelo.classes_).index(config.CLASSE_PULSAR)
-    p_maligno = float(_modelo.predict_proba(entrada)[0][coluna])
+    p_pulsar = float(_modelo.predict_proba(entrada)[0][coluna])
     return Predicao(
-        classe="maligno" if previsto == config.CLASSE_PULSAR else "benigno",
-        probabilidade_maligno=round(p_maligno, 4),
+        classe="pulsar" if previsto == config.CLASSE_PULSAR else "não pulsar",
+        probabilidade_pulsar=round(p_pulsar, 4),
         versao_codigo=__version__,
     )
