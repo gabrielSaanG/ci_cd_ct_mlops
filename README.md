@@ -4,8 +4,47 @@ Projeto pequeno, mas completo, que mostra como um modelo de machine learning é 
 automática. Usa ferramentas reais: **GitHub Actions**, **pytest**, **ruff**, **DVC**, **FastAPI**, **Docker** e
 **GitHub Container Registry**.
 
-O modelo é uma regressão logística que classifica tumores de mama (dataset Breast Cancer do scikit-learn).
-A classe de interesse é a **maligna** (rótulo `0`), então medimos **recall** e **precisão** dela.
+O modelo é uma regressão logística que separa **candidatos a pulsar** de ruído de radiofrequência (dataset
+**HTRU2**). A classe de interesse é o **pulsar** (rótulo `1`), que é a minoria dos dados, então medimos **recall** e
+**precisão** dela.
+
+## O problema e o dataset
+
+Um **pulsar** é uma estrela de nêutrons que gira muito rápido e emite um feixe de rádio periódico. Radiotelescópios
+registram milhares de *candidatos* por varredura, e a enorme maioria é interferência de radiofrequência (RFI) ou
+ruído. Classificar isso à mão não escala: o modelo faz a triagem e uma pessoa confere o que sobra.
+
+Como pulsar é um achado raro, **deixar um pulsar passar (falso negativo) custa mais caro do que chamar um ruído de
+pulsar (falso positivo)**, que só gera trabalho de revisão. Por isso o contrato exige recall alto e aceita uma
+precisão mais baixa.
+
+| Item | Valor |
+|---|---|
+| Dataset | **HTRU2** (High Time Resolution Universe Survey, pesquisa 1) |
+| Fonte | [UCI Machine Learning Repository, id 372](https://archive.ics.uci.edu/dataset/372/htru2) |
+| Licença | **CC BY 4.0** |
+| Tamanho | **17.898 linhas**, sendo **1.639 pulsares reais (9,16%)** e 16.259 exemplos de ruído/RFI |
+| Atributos | **8 colunas numéricas** |
+| Alvo | `alvo` — `1` = pulsar, `0` = não pulsar |
+
+As 8 features são estatísticas (média, desvio-padrão, assimetria e curtose) de duas curvas de cada candidato:
+
+| Coluna | O que é |
+|---|---|
+| `profile_mean`, `profile_stdev`, `profile_skewness`, `profile_kurtosis` | perfil integrado do pulso |
+| `dm_mean`, `dm_stdev`, `dm_skewness`, `dm_kurtosis` | curva DM-SNR (dispersão x relação sinal-ruído) |
+
+O dataset completo fica em `data/external/htru2.csv` (baixado por `scripts/preparar_htru2.py`) e é dividido com
+**semente fixa 42**, de forma **estratificada e sem sobreposição**, por `python -m mlops_demo.data base`:
+
+| Arquivo | Linhas | Pulsares | Para que serve |
+|---|---|---|---|
+| `data/raw/base_treino.csv` | 12.000 | 1.099 (9,16%) | treino |
+| `data/raw/base_holdout.csv` | 3.000 | 275 (9,17%) | referência fixa de avaliação |
+| reserva (não versionada) | 2.898 | 265 (9,14%) | origem dos lotes novos de `data/raw/lotes/` |
+
+> O projeto nasceu com o dataset Breast Cancer do scikit-learn. O registro da adaptação para o HTRU2 — o que mudou em
+> cada arquivo e por que cada limiar é o que é — está em [`ADAPTACAO.md`](ADAPTACAO.md).
 
 ## O que cada letra faz neste projeto
 
@@ -22,21 +61,30 @@ projeto_ci_cd_ct/
   .github/workflows/     ci.yml, ct.yml, cd.yml
   src/mlops_demo/        config, data, features, evaluate, train, gate, monitor, api
   tests/                 test_codigo, test_dados, test_modelo, test_api
+  data/external/         htru2.csv (dataset completo do HTRU2)
   data/raw/              base_treino.csv, base_holdout.csv e lotes/ (lotes novos chegam aqui)
+  scripts/               preparar_htru2.py (baixa o dataset do UCI)
   models/champion/       o modelo em produção (versionado no Git)
   params.yaml            hiperparâmetros (mudou aqui? o CI treina de novo e confere os limiares)
   dvc.yaml               pipeline: preparar e treinar
   Dockerfile             imagem da API com o modelo campeão
   demo/                  cenários de prática, gerador de lotes, teste de fumaça e execução local
+  ADAPTACAO.md           registro da adaptação do projeto original para o HTRU2
 ```
 
 ## Contrato de qualidade
 
 Definido em `src/mlops_demo/config.py`:
 
-- recall da classe maligna **>= 0,90**
-- precisão da classe maligna **>= 0,90** (sem ela, um modelo que chuta tudo como maligno teria recall 1,0)
+- recall da classe **pulsar >= 0,85** — perder um pulsar é o erro mais caro
+- precisão da classe **pulsar >= 0,70** — sem ela, um modelo que chuta "pulsar" para tudo teria recall 1,0 com
+  precisão de ~0,09 (a proporção real de pulsares)
 - o candidato não pode ter recall menor que o do campeão, medido **no mesmo conjunto**
+
+Com ~9% de pulsares, **acurácia engana**: prever "não pulsar" para todo mundo já dá ~91%. Por isso ela aparece nos
+relatórios apenas como referência, e nunca no contrato. O campeão atual fica em **recall 0,935 e precisão 0,811** no
+holdout fixo. Há também um piso de sanidade (`PISO_SANIDADE = 0,80`): o campeão versionado não pode colapsar nessa
+base de referência.
 
 ---
 
@@ -167,11 +215,11 @@ git branch -D cenario-N
 
 | N | O que muda | O que você deve observar |
 |---|---|---|
-| 1 | remove a última coluna das entradas do modelo | CI vermelho em **Testes de código** |
-| 2 | nulos e áreas negativas na base de treino | CI vermelho em **Validar os dados brutos** (antes do treino) |
-| 3 | regularização muito forte (`C: 0.00005`) | CI vermelho em **Testes de modelo**: recall abaixo de 0,90 |
-| 4 | lote novo com drift (tamanhos 25% menores) | CI verde. Veja o CT na seção seguinte |
-| 5 | `class_weight` extremo na classe maligna | CI vermelho: recall 1,0, mas precisão abaixo de 0,90 |
+| 1 | descarta `dm_kurtosis`, a última das 8 features | CI vermelho em **Testes de código**: `separar_xy` devolve 7 colunas |
+| 2 | nulos em `profile_mean` e `dm_mean` negativo na base de treino | CI vermelho em **Validar os dados brutos** (antes do treino) e em **Testes de dados** |
+| 3 | regularização muito forte (`C: 0.00005`) | CI vermelho em **Testes de modelo**: recall do pulsar cai para ~0,81, abaixo de 0,85 |
+| 4 | lote novo com drift: escala do sinal 25% menor | CI verde (os dados são válidos). Veja o CT na seção seguinte |
+| 5 | `class_weight: {0: 1, 1: 500}`, extremo a favor do pulsar | CI vermelho: recall ~1,0, mas precisão ~0,13, abaixo de 0,70 |
 
 Para listar os cenários: `python demo/cenarios.py listar`.
 
@@ -190,7 +238,7 @@ O lote novo mostra que os dados mudaram. Aqui o CI fica verde, porque os dados s
 ### Cenário 4, modo automático: do lote novo à imagem publicada, sem ninguém
 
 No modo anterior, uma pessoa aprova o PR e outra cria a tag. Quando o portão de qualidade já é a regra de negócio
-("só entra modelo com recall e precisão de pelo menos 0,90 e que não piore o campeão"), dá para automatizar tudo. O CT
+("só entra modelo com recall do pulsar de pelo menos 0,85, precisão de pelo menos 0,70 e que não piore o campeão"), dá para automatizar tudo. O CT
 passa a publicar o campeão na `main`, criar a tag da nova versão e disparar o CD.
 
 **Antes de começar (uma vez):**
@@ -259,7 +307,10 @@ python demo/smoke_test.py http://localhost:8000
 | `python -m mlops_demo.gate` | compara candidato e campeão. Sai com código 1 se reprovar |
 | `python -m mlops_demo.gate --promover` | copia o candidato para `models/champion/` |
 | `python demo/cenarios.py listar` | lista os cenários de prática |
-| `python demo/gerar_lote.py lote_02 --drift 0.75` | gera um lote novo de exames |
+| `python demo/gerar_lote.py lote_02 --drift 0.75` | gera um lote novo de observações (com drift de escala) |
+| `python -m mlops_demo.data base` | recria `base_treino.csv` e `base_holdout.csv` a partir de `data/external/htru2.csv` |
+| `python scripts/preparar_htru2.py` | baixa o HTRU2 do UCI e grava `data/external/htru2.csv` (precisa de internet) |
+| `python -m mlops_demo.train --campeao` | treina o campeão inicial e grava `models/champion/` |
 
 ## Se algo der errado
 
