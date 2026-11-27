@@ -4,7 +4,8 @@ Este documento registra a adaptação do projeto de demonstração CI/CD/CT, que
 scikit-learn, para o dataset **HTRU2** (classificação de candidatos a pulsar). O pipeline, os workflows e a
 estrutura de pastas foram mantidos: mudaram o domínio, o esquema dos dados, o contrato de qualidade e os testes.
 
-Seções 1 a 3 preenchidas. As seções 4 e 5 ficam para o grupo fechar junto com as evidências no GitHub Actions.
+Documento completo: seções 1 a 3 descrevem a adaptação, a seção 4 reúne as evidências E1–E5 executadas no
+GitHub Actions e a seção 5 registra a divisão do trabalho.
 
 ---
 
@@ -197,24 +198,132 @@ projeto tem 8 atributos (eram 30): exigir 3 de 8 seria um gatilho bem mais rígi
 
 ## 4. Evidências no GitHub Actions (E1–E5)
 
-> A preencher pelo grupo, com o link de cada run.
+Todas as evidências foram geradas no repositório, com a `main` já adaptada ao HTRU2. Cada cenário virou uma branch
+e um Pull Request de demonstração — **nenhum deles deve ser mergeado**.
 
-| Evidência | O que mostrar | Cenário | Link do run | Status |
+| Evidência | O que mostra | Cenário / PR | Run | Resultado |
 |---|---|---|---|---|
-| **E1** | CI verde na `main` adaptada | — | | |
-| **E2** | CI vermelho por bug de código | 1 | | |
-| **E3** | CI vermelho por dados inválidos | 2 | | |
-| **E4** | CI vermelho por contrato de modelo | 3 ou 5 | | |
-| **E5** | CT: drift detectado, retreino e portão de qualidade | 4 | | |
+| **E1** | CI verde na `main` adaptada | merge do PR #5 | [CI #11](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45933035778) | **sucesso**, 3 jobs |
+| **E2** | CI vermelho por bug de código | 1 / [#6](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/6) | [CI #12](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45933287280) | **falha** em `Testes de código` |
+| **E3** | CI vermelho por dados inválidos | 2 / [#7](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/7) | [CI #13](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45933346167) | **falha** em `Validar os dados brutos` |
+| **E4** | CI vermelho por contrato de modelo | 3 / [#8](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/8) | [CI #14](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45933389115) | **falha** em `Testes de modelo` (recall) |
+| **E4b** | o outro extremo do mesmo contrato | 5 / [#10](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/10) | [CI #16](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45933490517) | **falha** em `Testes de modelo` (precisão) |
+| **E5** | CT: drift, retreino e portão de qualidade | 4 / [#9](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/9) | [CT #5](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45933444021) + [CI #15](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45933443898) | **CT disparado e portão aprovado**, com o CI verde |
+
+### E1 — CI verde na `main` adaptada
+
+Run do push de merge do PR #5. Os três jobs passam: `Lint e formatação (ruff)`, `Testes (Python 3.11)` e
+`Testes (Python 3.12)`. É a linha de base: a partir daqui, todo vermelho que aparecer foi causado pelo cenário.
+
+> O run do merge do PR #4 (CI #10) aparece como **cancelado**: o merge do #5 veio logo em seguida e o
+> `concurrency` do `ci.yml` (`cancel-in-progress: true`) derruba o run anterior do mesmo ref. É comportamento
+> esperado do workflow, não uma falha.
+
+### E2 — bug de código
+
+O job de lint passa (o código continua válido e formatado) e os dois jobs de teste falham com exit code 1, no passo
+`Testes de código`, antes de treinar qualquer coisa:
+
+```
+tests/test_codigo.py::test_separar_xy_devolve_oito_features_e_alvo
+tests/test_codigo.py::test_separar_xy_impoe_a_ordem_das_colunas
+```
+
+Um bug de contrato de esquema é pego em segundos, sem gastar treino.
+
+### E3 — dados inválidos
+
+A falha acontece no passo `Validar os dados brutos`, que roda **antes** de todos os testes. Saída do run:
+
+```
+base_treino.csv: FALHOU: valores nulos: {'profile_mean': 5}; valores negativos em ['dm_mean'] (médias devem ser >= 0)
+base_holdout.csv: OK
+Error: Process completed with exit code 1.
+```
+
+Os passos seguintes (`Testes de código`, `de dados`, `de modelo`, `de API`) aparecem com 0s: foram pulados. Dado
+ruim é barrado na porta de entrada.
+
+### E4 — contrato de modelo
+
+Aqui nada está quebrado: o código é válido, os dados são válidos, o modelo treina sem erro. O que falha é o
+**contrato**, no passo `Testes de modelo`:
+
+```
+AssertionError: {'recall_pulsar': 0.8145454545454546, 'precisao_pulsar': 0.8517110266159695,
+                 'acuracia': 0.97, 'n_amostras': 3000}
+assert 0.8145454545454546 >= 0.85
+```
+
+Repare na acurácia: **0,97**, praticamente igual à do campeão (0,974). E a precisão até *subiu*. Se o contrato
+fosse acurácia, essa regressão passaria batido. É a justificativa prática dos limiares escolhidos na seção 3.
+
+A **E4b** mostra o extremo oposto, com `class_weight: {0: 1, 1: 500}`: recall 0,996 e precisão 0,132. Recall quase
+perfeito e modelo inútil — de cada 100 candidatos marcados como pulsar, 87 são ruído. É o piso de precisão fazendo
+o trabalho dele.
+
+### E5 — treinamento contínuo
+
+O lote com drift deixa o **CI verde** (CI #15): os dados são válidos, só estão deslocados. Quem reage é o **CT**,
+e o `Summary` do run CT #5 traz o relatório completo:
+
+```
+Drift: 4 de 8 atributos
+Lotes comparados: lote_01.csv (120 linhas)
+
+| Atributo      | KS    | p-valor |
+| profile_stdev | 0.746 | 9.9e-69 |
+| profile_mean  | 0.641 | 4.4e-48 |
+| dm_stdev      | 0.289 | 2.8e-09 |
+| dm_mean       | 0.163 | 3.1e-03 |
+
+Gatilho (>= 2 atributos com drift): DISPARADO, retreinar
+```
+
+O CT então roda `dvc repro` e submete o candidato ao portão:
+
+| Modelo | Recall pulsar | Precisão pulsar | Amostras |
+|---|---|---|---|
+| campeao | 0,937 | 0,816 | 3060 |
+| candidato | 0,937 | 0,806 | 3060 |
+
+| Regra | Resultado | Valor |
+|---|---|---|
+| recall pulsar do candidato >= 0,85 | passou | 0,9366 |
+| precisão pulsar do candidato >= 0,70 | passou | 0,8061 |
+| recall pulsar do candidato >= recall do campeão | passou | 0,9366 x 0,9366 |
+
+**Portão: APROVADO.** Os números do run batem exatamente com os medidos em `python demo/local.py ct` na máquina
+local, o que é o efeito esperado da semente fixa.
+
+Em evento de `pull_request` o CT **não promove o candidato e não abre o PR de campeão** — os dois passos têm a
+guarda `github.event_name != 'pull_request'`. A promoção só acontece depois do merge na `main`. Por isso estes PRs
+de evidência podem ficar abertos (ou ser fechados) sem efeito nenhum sobre o modelo em produção.
+
+Os cenários 3 e 5 também disparam o workflow CT, porque mexem em `params.yaml` (CT #4 e CT #6). Os dois terminam
+com sucesso e sem retreinar: não há lote novo em `data/raw/lotes/`, então o gatilho de drift não dispara e o
+workflow encerra com "Gatilho não disparado: nada a fazer". É o comportamento correto — CT por evento só retreina
+quando os dados mudam.
 
 ## 5. Divisão do trabalho
 
-> A preencher pelo grupo. Cada PR já registra o autor e as etapas; os números abaixo são os PRs desta adaptação.
-
 | Etapas | Responsável | PR |
 |---|---|---|
-| 1–2 — dados HTRU2 e divisão | André | #1 |
-| 3–4 — contrato e validação | Matheus | #2 |
-| 5–7 — modelo, avaliação e drift | Débora | #3 |
-| 8–9 — API e testes | Wesley | #4 |
-| 10–12 — cenários, campeão e documentação | João | #5 |
+| 1–2 — dados HTRU2, download e divisão treino/holdout/reserva | André | [#1](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/1) |
+| 3–4 — contrato do modelo e validação de dados | Matheus | [#2](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/2) |
+| 5–7 — modelo, avaliação na classe pulsar e gatilho de drift | Débora | [#3](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/3) |
+| 8–9 — API de 8 features e testes das 4 camadas | Wesley | [#4](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/4) |
+| 10–12 — cenários, campeão inicial e documentação | João | [#5](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/5) |
+| Evidências E1–E5 e seções 4–5 deste documento | João | [#6](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/6) a [#10](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/10) |
+
+### Como reproduzir tudo localmente
+
+```bash
+python -m venv .venv && source .venv/Scripts/activate
+pip install -e ".[dev,ct]"
+python demo/local.py ci          # 7/7 ok
+python demo/cenarios.py listar   # os 5 cenários
+```
+
+Para repetir qualquer evidência: `git switch -c cenario-N main`, `python demo/cenarios.py aplicar N`, commit e
+push. O `demo/local.py ci` reproduz o CI inteiro sem internet, e o `demo/local.py ct` reproduz o CT.
