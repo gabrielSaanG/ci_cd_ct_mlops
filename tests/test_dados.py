@@ -1,4 +1,4 @@
-"""Testes de dados: esquema, valores e vazamento entre treino e teste."""
+"""Testes de dados: esquema, valores e vazamento no HTRU2."""
 
 import pandas as pd
 import pytest
@@ -20,7 +20,6 @@ def test_arquivo_respeita_esquema_e_valores(caminho):
 
 
 def test_base_de_treino_tem_as_duas_classes_em_proporcao_razoavel(base_treino):
-    # HTRU2 é desbalanceado: ~9,2% de pulsares. A divisão estratificada deve preservar isso.
     proporcao_pulsar = (base_treino[config.ALVO] == config.CLASSE_PULSAR).mean()
     assert 0.07 <= proporcao_pulsar <= 0.12
 
@@ -47,7 +46,6 @@ def test_validador_detecta_nulos_e_faixas_invalidas(base_treino):
 
 
 def test_validador_aceita_assimetria_e_curtose_negativas(base_treino):
-    # assimetria e curtose negativas são válidas no HTRU2 (ex.: profile_kurtosis mín. ~ -1,9)
     dados = base_treino.copy()
     dados.loc[0, ["profile_skewness", "profile_kurtosis", "dm_skewness", "dm_kurtosis"]] = -1.5
     assert validar_dataframe(dados) == []
@@ -67,3 +65,9 @@ def test_validador_detecta_esquema_diferente(base_treino):
     assert problemas and "faltando=['profile_mean']" in problemas[0]
     fora_de_ordem = base_treino[[*reversed(config.FEATURES), config.ALVO]]
     assert validar_dataframe(fora_de_ordem)
+
+
+def test_htru2_tem_exatamente_oito_atributos_de_observacao(base_treino):
+    assert config.ALVO not in config.FEATURES
+    assert len(config.FEATURES) == 8
+    assert list(base_treino.columns) == [*config.FEATURES, config.ALVO]
