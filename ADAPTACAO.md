@@ -146,21 +146,17 @@ porcentagem de tráfego e rollback automático por métrica de serviço.
 
 ## 6. Contribuição e uso de IA
 
-| Integrante | Etapas | PR |
+| Integrante | Etapas | PR / entrega |
 |---|---|---|
+| Gabriel | Parte B: repo público (sem fork), push inicial, CI verde, permissões do Actions e `PROMOCAO_AUTOMATICA=false`; coordenação do dataset e dos prompts | commit inicial na `main` |
 | André | 1–2: dados HTRU2, download e divisão | [#1](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/1) |
 | Matheus | 3–4: contrato e validação | [#2](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/2) |
 | Débora | 5–7: modelo, métricas e drift | [#3](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/3) |
 | Wesley | 8–9: API e testes | [#4](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/4) |
 | João | 10–12: cenários, campeão e documentação | [#5](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/5) |
-| João | evidências E1–E5 e este relatório | [#6](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/6) a [#12](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/12) |
+| João | evidências E1–E5, este relatório e desafio opcional | [#11](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/11)–[#14](https://github.com/gabrielSaanG/ci_cd_ct_mlops/pull/14) |
 
-**Uso de IA.** As etapas 10 a 12, as evidências E1–E5 e este relatório foram feitos com apoio do **Claude Code**
-(Anthropic), usado para: reescrever `demo/cenarios.py` no domínio do HTRU2, calibrar os valores dos cenários 3 e 5
-medindo o efeito real no holdout, redigir o `README.md` e este documento, e operar a geração das evidências no
-GitHub Actions. Todos os números citados foram **medidos**, não estimados: cada cenário foi executado localmente
-com `python demo/local.py ci` e `ct` antes do push, e conferido depois no log do Actions. A escolha do dataset e
-as decisões de contrato (0,85 / 0,70) foram do grupo.
+**Uso de IA.** O planejamento (escolha do HTRU2, contrato 0,85/0,70 e divisão de tarefas) teve apoio do **Cursor**. As etapas 10 a 12, as evidências E1–E5 e a redação deste relatório foram feitos com apoio do **Claude Code** (Anthropic), usado para: reescrever `demo/cenarios.py` no domínio do HTRU2, calibrar os valores dos cenários 3 e 5 medindo o efeito real no holdout, redigir o `README.md` e este documento, e operar a geração das evidências no GitHub Actions. Todos os números citados foram **medidos**, não estimados: cada cenário foi executado localmente com `python demo/local.py ci` e `ct` antes do push, e conferido depois no log do Actions. As decisões finais de dataset e limiares foram do grupo.
 
 ## 7. Desafio opcional: promoção automática
 
