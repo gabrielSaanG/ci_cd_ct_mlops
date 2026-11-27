@@ -64,7 +64,7 @@ recall 0,82 sem `class_weight`, ou precisão 0,13 com peso extremo, reprovam.
 | 8 | `api.py`, `demo/smoke_test.py` | payload de **8** atributos (era 30); resposta `pulsar`/`não pulsar` e `probabilidade_pulsar` |
 | 9 | `tests/` | 4 arquivos adaptados + **1 teste novo por camada** específico do HTRU2 |
 | 10 | `demo/cenarios.py` | os 5 cenários com as colunas do HTRU2 |
-| 11 | `models/champion/` | campeão inicial: recall 0,9345, precisão 0,8107, acurácia 0,974 em 3.000 linhas |
+| 11 | `models/champion/` | campeão inicial: recall 0,9345, precisão 0,8107, acurácia 0,974 em 3.000 linhas (depois substituído pelo CT, seção 7) |
 | 12 | `README.md` | problema, dataset, contrato e roteiro reescritos |
 
 **Testes novos (etapa 9):** `test_htru2_separar_xy_preserva_o_rotulo_binario_de_pulsar` (código),
@@ -161,6 +161,59 @@ medindo o efeito real no holdout, redigir o `README.md` e este documento, e oper
 GitHub Actions. Todos os números citados foram **medidos**, não estimados: cada cenário foi executado localmente
 com `python demo/local.py ci` e `ct` antes do push, e conferido depois no log do Actions. A escolha do dataset e
 as decisões de contrato (0,85 / 0,70) foram do grupo.
+
+## 7. Desafio opcional: promoção automática
+
+Com `PROMOCAO_AUTOMATICA = true` e a `main` sem proteção, o ciclo roda inteiro sem ninguém no caminho. Um único
+`git push` de um lote novo em `data/raw/lotes/` para a `main` produziu, em cerca de 3 minutos:
+
+| Passo | Quem fez | Execução |
+|---|---|---|
+| Detectar drift, retreinar, aplicar o portão | [CT #8](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45937245358) | drift 4/8, portão APROVADO |
+| Publicar o campeão na `main` | `github-actions[bot]` | commit `6eaf7f9` — "ct: promove novo modelo campeão (portão aprovado)" |
+| Criar a tag da versão | `github-actions[bot]` | `v1.1.0` |
+| Construir, testar e publicar a imagem | [CD #2](https://github.com/gabrielSaanG/ci_cd_ct_mlops/actions/runs/45937320495) | disparado pelo bot, 2m15s |
+
+Resultado: `models/champion/metrics.json` passou a registrar `"origem": "treinamento contínuo (CT)"`, com recall
+0,9366 e precisão 0,8061, e o registro ganhou a tag `1.1.0` ao lado da `1.0.0`. **Nenhuma pessoa aprovou nada
+depois do push do lote.**
+
+### Vantagens
+
+- **Tempo de resposta.** Entre o dado novo chegar e o modelo atualizado estar servindo em produção passaram-se
+  minutos, não dias. Em um domínio onde o instrumento é recalibrado, isso é a diferença entre reagir e acumular
+  erro.
+- **O critério fica explícito e versionado.** A decisão de promover deixa de ser julgamento de quem está de
+  plantão e vira código revisável: os limiares estão no `config.py` e mudá-los exige Pull Request.
+- **Elimina o gargalo humano e o erro de operação.** Ninguém esquece de criar a tag, ninguém publica a imagem
+  errada, ninguém promove um modelo que não passou no portão.
+- **Rastreabilidade.** Cada promoção deixa commit, tag, run e imagem com o mesmo SHA. Dá para reconstruir
+  exatamente qual modelo estava no ar em qualquer data.
+
+### Riscos
+
+- **O portão vira o único juízo.** Tudo o que ele não mede passa (ver seção 5): desempenho por subgrupo, drift de
+  conceito, latência, custo. Um modelo pode cumprir os dois limiares e ainda ser pior na prática.
+- **Dados ruins promovem modelos ruins.** O gatilho é drift, não qualidade. Se um lote chegar corrompido de um
+  jeito que a validação não pega — uma unidade trocada, por exemplo — o CT retreina em cima disso e publica.
+- **Degradação lenta não é vista.** Cada candidato pode ser um pouco pior que o anterior e ainda passar.
+  Em dez ciclos o modelo caiu bastante sem nenhum run vermelho.
+- **A `main` precisa ficar desprotegida** para o bot escrever nela. Isso enfraquece o controle para *todo mundo*,
+  não só para o robô, e é um preço de segurança real.
+- **Sem revisão, não há quem note o estranho.** Uma pessoa revisando um PR de promoção repara em "o recall subiu
+  demais de repente". O portão não.
+- **Versões proliferam.** Cada execução agendada com drift gera tag e imagem novas. Sem política de limpeza, o
+  registro cresce sem controle.
+
+### O que faríamos em produção
+
+Manteríamos a promoção automática apenas com rede de proteção em volta: *canary* com fatia pequena de tráfego
+antes dos 100%, rollback automático por métrica de serviço, revisão humana amostrada sobre o que o modelo marca
+como pulsar, e proteção da `main` com exceção só para o bot (no GitHub, um *bypass* de ruleset para um App) em vez
+de deixar a branch aberta para todos.
+
+**Estado atual do repositório:** a variável continua em `true` para que a evidência seja verificável. Para voltar
+ao modo com revisão humana, basta trocá-la para `false` em Settings > Secrets and variables > Actions > Variables.
 
 ---
 

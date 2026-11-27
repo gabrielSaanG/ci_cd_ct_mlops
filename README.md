@@ -82,8 +82,8 @@ Definido em `src/mlops_demo/config.py`:
 - o candidato não pode ter recall menor que o do campeão, medido **no mesmo conjunto**
 
 Com ~9% de pulsares, **acurácia engana**: prever "não pulsar" para todo mundo já dá ~91%. Por isso ela aparece nos
-relatórios apenas como referência, e nunca no contrato. O campeão atual fica em **recall 0,935 e precisão 0,811** no
-holdout fixo. Há também um piso de sanidade (`PISO_SANIDADE = 0,80`): o campeão versionado não pode colapsar nessa
+relatórios apenas como referência, e nunca no contrato. O primeiro campeão ficou em **recall 0,935 e precisão 0,811** no
+holdout fixo; o campeão em produção é promovido pelo CT e suas métricas estão em `models/champion/metrics.json`. Há também um piso de sanidade (`PISO_SANIDADE = 0,80`): o campeão versionado não pode colapsar nessa
 base de referência.
 
 ---
