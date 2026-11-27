@@ -2,7 +2,7 @@
 semente: 42
 
 modelo:
-  C: 1.0
+  C: 0.00005
   max_iter: 1000
   # HTRU2 é desbalanceado (~9% pulsares). "balanced" pesa a classe pulsar ~10x mais,
   # o que sobe o recall (~0,93 no holdout) sem derrubar demais a precisão (~0,81).
